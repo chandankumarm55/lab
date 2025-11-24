@@ -1,0 +1,158 @@
+import math
+
+
+class CoreLogisticRegression:
+
+    def __init__(self, learning_rate=0.01, n_iterations=1000):
+        """Initializes the model's hyperparameters."""
+        self.learning_rate = learning_rate
+        self.n_iterations = n_iterations
+        self.theta_0 = 0.0                  # Bias
+        self.theta_weights = []              # Feature weights
+        self.cost_history = []
+
+
+    def _sigmoid(self, z):
+        """Computes the sigmoid function with numerical stability."""
+        if z > 700:
+            return 1.0
+        elif z < -700:
+            return 0.0
+        else:
+            return 1.0 / (1.0 + math.exp(-z))
+
+
+    def _compute_z(self, x_sample):
+        """Computes the linear combination of inputs and weights."""
+        z = self.theta_0
+        for i in range(len(self.theta_weights)):
+            z += self.theta_weights[i] * x_sample[i]
+        return z
+
+
+    def _predict_probability(self, x_sample):
+        """Makes a probability prediction for a single sample."""
+        z = self._compute_z(x_sample)
+        return self._sigmoid(z)
+
+
+    def _compute_cost(self, y_true, y_pred_probs):
+        """Computes the binary cross-entropy (log loss)."""
+        m = len(y_true)
+        if m == 0:
+            return 0.0
+
+        total_cost = 0.0
+        epsilon = 1e-9  # To avoid log(0)
+
+        for i in range(m):
+            h = max(epsilon, min(1.0 - epsilon, y_pred_probs[i]))  # Clipping
+            cost_sample = -y_true[i] * math.log(h) - (1 - y_true[i]) * math.log(1 - h)
+            total_cost += cost_sample
+
+        return total_cost / m
+
+
+    def _compute_gradients(self, X_data, y_true, y_pred_probs):
+        """Computes the gradients of the cost function."""
+        m = len(y_true)
+        n_features = len(self.theta_weights)
+
+        grad_theta_0 = 0.0
+        grad_theta_weights = [0.0] * n_features
+
+        for i in range(m):
+            error = y_pred_probs[i] - y_true[i]
+
+            # Gradient for bias
+            grad_theta_0 += error
+
+            # Gradients for weights
+            for j in range(n_features):
+                grad_theta_weights[j] += error * X_data[i][j]
+
+        # Take average
+        grad_theta_0 /= m
+        for j in range(n_features):
+            grad_theta_weights[j] /= m
+
+        return grad_theta_0, grad_theta_weights
+
+
+    def fit(self, X_data, y_data, verbose=True):
+        """Trains the model using batch gradient descent."""
+        n_features = len(X_data[0])
+
+        # Initialize parameters
+        self.theta_0 = 0.0
+        self.theta_weights = [0.0] * n_features
+        self.cost_history = []
+
+        for i in range(self.n_iterations):
+            # Predict probabilities
+            y_pred_probs = [self._predict_probability(x) for x in X_data]
+
+            # Compute cost
+            cost = self._compute_cost(y_data, y_pred_probs)
+            self.cost_history.append(cost)
+
+            # Compute gradients
+            grad_theta_0, grad_theta_weights = self._compute_gradients(
+                X_data, y_data, y_pred_probs
+            )
+
+            # Update parameters
+            self.theta_0 -= self.learning_rate * grad_theta_0
+            for j in range(n_features):
+                self.theta_weights[j] -= self.learning_rate * grad_theta_weights[j]
+
+            # Print progress
+            if verbose and (self.n_iterations >= 10) and i % (self.n_iterations // 10) == 0:
+                print(f"Iteration {i}: Cost = {cost:.4f}")
+
+
+    def predict_proba(self, X_data):
+        """Predicts probabilities for new data."""
+        return [self._predict_probability(x) for x in X_data]
+
+
+    def predict(self, X_data, threshold=0.5):
+        """Predicts class labels (0 or 1) based on a threshold."""
+        probabilities = self.predict_proba(X_data)
+        return [1 if prob >= threshold else 0 for prob in probabilities]
+
+
+# ==========================================
+#          TESTING THE MODEL
+# ==========================================
+if __name__ == "__main__":
+
+    print("--- Testing CoreLogisticRegression ---")
+
+    # 1. Create a simple dataset (hours studied vs pass/fail)
+    X_train = [[1.0], [1.5], [2.0], [2.5], [4.5], [5.0], [5.5], [6.0]]
+    y_train = [0, 0, 0, 0, 1, 1, 1, 1]  # Students who studied > 4 hours passed
+
+    # 2. Initialize and train the model
+    model = CoreLogisticRegression(learning_rate=0.1, n_iterations=5000)
+    print("Starting training...")
+    model.fit(X_train, y_train)
+    print("Training complete.")
+
+    # 3. Print the final learned parameters
+    print(f"\nFinal Bias (theta_0): {model.theta_0:.4f}")
+    print(f"Final Weight (theta_1): {model.theta_weights[0]:.4f}")
+
+    # 4. Make predictions on new, unseen data
+    X_test = [[0.5], [3.0], [3.5], [7.0]]
+
+    probs = model.predict_proba(X_test)
+    labels = model.predict(X_test)
+
+    print("\n--- Test Results ---")
+    for i in range(len(X_test)):
+        print(
+            f"Input: {X_test[i][0]} hours | "
+            f"Prob(Pass): {probs[i]:.4f} | "
+            f"Prediction: {labels[i]}"
+        )
